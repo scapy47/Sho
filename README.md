@@ -14,6 +14,8 @@
     </div>
 </div>
 
+![looksmaxxing](etc/1000006705.png)   
+
 ## Quick Links
 
 - [intro](#Introduction)
@@ -48,8 +50,6 @@ export SHIO_PLAYER_CMD="mpv --user-agent={user_agent} --http-header-fields='Refe
 > otherwise some sources may not work.
 
 ### Installation
-
-Download the binary for your OS from the [Releases](https://github.com/scapy_47/shio/releases) page.
 
 **Linux / macOS**
 ```sh
