@@ -52,21 +52,8 @@ export SHIO_PLAYER_CMD="mpv --user-agent={user_agent} --http-header-fields='Refe
 Download the binary for your OS from the [Releases](https://github.com/scapy_47/shio/releases) page.
 
 **Linux / macOS**
-
-1.  Rename the downloaded file (e.g., `shio-Linux-x86_64`) to `shio`.
-2.  Make it executable.
-3.  Move it to your `$PATH` (e.g., `~/.local/bin`).
-
 ```sh
-# 1. Rename (Replace filename with the one you downloaded)
-mv shio-Linux-x86_64 shio
-
-# 2. Make executable
-chmod u+x shio
-
-# 3. Move to path
-mkdir -p ~/.local/bin
-mv shio ~/.local/bin/
+curl https://raw.githubusercontent.com/Scapy47/Shio/refs/heads/main/etc/setup.sh | sh
 ```
 
 **Windows**
