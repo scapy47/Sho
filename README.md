@@ -36,18 +36,24 @@
 
 Built for those who want a seamless experience without ever leaving the terminal.
 
-## Getting started
+## Getting Started
 
-### Setup player
+### Setup Player
 
+Shio uses the `SHIO_PLAYER_CMD` environment variable to launch your media player. Set it to your player of choice — **mpv** and **VLC** are recommended.
+
+**mpv**
 ```sh
-export SHIO_PLAYER_CMD="mpv --user-agent={user_agent} --http-header-fields='Referer: {referer}' {url}"
+export SHIO_PLAYER_CMD="mpv --user-agent='{user_agent}' --http-header-fields='Referer: {referer}' '{url}'"
+```
+
+**VLC**
+```sh
+export SHIO_PLAYER_CMD="vlc --http-user-agent='{user_agent}' --http-referrer='{referer}' '{url}'"
 ```
 
 > [!NOTE]
-> some sources require `{user_agent}` and `{referer}` to work properly.
-> If your player supports custom header configuration, it is recommended to set these up.
-> otherwise some sources may not work.
+> `{url}` is required. `{user_agent}` and `{referer}` are only required for some hosts — but it's recommended to include them so all sources work correctly.
 
 ### Installation
 
@@ -60,4 +66,3 @@ curl -fsSL https://raw.githubusercontent.com/Scapy47/Shio/refs/heads/main/etc/se
 ```powershell
 irm https://raw.githubusercontent.com/Scapy47/Shio/refs/heads/main/etc/setup.ps1 | iex
 ```
-
