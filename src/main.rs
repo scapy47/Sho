@@ -186,7 +186,7 @@ impl App {
                         {
                             self.table_state.select_previous()
                         }
-                        event::KeyCode::Backspace
+                        event::KeyCode::Backspace | event::KeyCode::Char('h')
                             if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
                         {
                             match self.view {
@@ -488,7 +488,7 @@ impl App {
                         .alignment(HorizontalAlignment::Center),
                 ])
                 .height(2),
-            );
+            )
         }
 
         let header = Row::new(vec![
@@ -599,7 +599,12 @@ impl App {
                 Span::raw("keys, "),
                 Span::raw("press "),
                 Span::styled("Enter ", Style::default().bold().green()),
-                Span::raw("select"),
+                Span::raw("to "),
+                Span::styled("Select ", Style::default().bold().green()),
+                Span::raw("and "),
+                Span::styled("ctrl + ← ", Style::default().bold().cyan()),
+                Span::raw("to go "),
+                Span::styled("Back", Style::default().bold().cyan()),
             ]),
         );
     }
