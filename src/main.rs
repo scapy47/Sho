@@ -24,14 +24,14 @@ mod api;
 mod utils;
 use crate::{
     api::{AnimeEdge, Api, Mode},
-    utils::{ASCII_ART, decrypt_url},
+    utils::decrypt_url,
 };
 
 #[derive(Parser, Debug)]
 struct Args {
     /// Name of the anime to watch
     #[arg()]
-    name: String,
+    name: Option<String>,
 
     /// Audio mode to use
     #[arg(short, long, value_enum, default_value_t = Mode::Sub)]
@@ -125,45 +125,47 @@ impl App {
         let api_clone = self.api.clone();
         let name = self.args.name.clone();
         let tx_clone = tx.clone();
-        thread::spawn(move || match api_clone.search_anime(name.as_str()) {
-            Ok(resp) => tx_clone.send(Some(Resp {
-                search: Some(resp.data.shows.edges),
-                ..Default::default()
-            })),
-            Err(e) => {
-                eprintln!("Error getting search results: {}", e);
-                tx_clone.send(None)
-            }
-        });
+        thread::spawn(
+            move || match api_clone.search_anime(name.unwrap_or_default().as_str()) {
+                Ok(resp) => tx_clone.send(Some(Resp {
+                    search: Some(resp.data.shows.edges),
+                    ..Default::default()
+                })),
+                Err(e) => {
+                    eprintln!("Error getting search results: {}", e);
+                    tx_clone.send(None)
+                }
+            },
+        );
 
         while !self.exit {
             if let Ok(Some(resp)) = rx.try_recv() {
                 if let Some(search_resp) = resp.search {
                     self.rows_to_data_index = (0..search_resp.len()).collect();
                     self.resp.search = Some(search_resp);
-                    self.table_state.select(Some(0));
-                    self.input.reset();
                     self.view = View::Search
                 }
                 if let Some(ep_list_resp) = resp.episode_list {
                     self.rows_to_data_index = (0..ep_list_resp.1.len()).collect();
                     self.resp.episode_list = Some(ep_list_resp);
-                    self.table_state.select(Some(0));
-                    self.input.reset();
                     self.view = View::Episode
                 }
                 if let Some(ep_provider_list_resp) = resp.episode_provider_list {
                     self.rows_to_data_index = (0..ep_provider_list_resp.1.len()).collect();
                     self.resp.episode_provider_list = Some(ep_provider_list_resp);
-                    self.table_state.select(Some(0));
-                    self.input.reset();
                     self.view = View::Provider
                 }
+
+                self.table_state.select(Some(0));
+                self.input.reset();
             }
 
-            if self.rows_to_data_index.is_empty() {
-                self.update_row_to_data_index();
-            }
+            // match self.view {
+            //     View::Loading => (),
+            //     View::Search => {}
+            //     View::Episode => {}
+            //     View::Provider => {}
+            // }
 
             terminal.draw(|frame| self.render(frame))?;
 
@@ -174,6 +176,11 @@ impl App {
                 if let Event::Key(key) = event {
                     match key.code {
                         event::KeyCode::Esc => return Ok(()),
+                        event::KeyCode::Char('q')
+                            if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
+                        {
+                            return Ok(());
+                        }
                         event::KeyCode::Down => self.table_state.select_next(),
                         event::KeyCode::Char('j')
                             if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
@@ -190,10 +197,14 @@ impl App {
                             if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
                         {
                             match self.view {
-                                View::Loading | View::Search => (),
+                                View::Loading => (),
+                                View::Search => return Ok(()),
                                 View::Episode => self.view = View::Search,
                                 View::Provider => self.view = View::Episode,
                             }
+                            self.input.reset();
+                            self.table_state.select(Some(0));
+                            self.update_row_to_data_index()
                         }
                         event::KeyCode::Enter => match self.view {
                             View::Loading => (),
@@ -306,8 +317,7 @@ impl App {
         Ok(())
     }
 
-    /// update the index of rows to data pointer vec
-    fn update_row_to_data_index(&mut self) {
+    fn fuzzy_reorder(&mut self, str_vec: Vec<String>, buff: &mut Vec<char>) {
         let pattern = Pattern::new(
             self.input.value(),
             CaseMatching::Smart,
@@ -315,57 +325,54 @@ impl App {
             AtomKind::Fuzzy,
         );
 
+        let mut vec: Vec<(usize, u32)> = Vec::new();
+        for (i, e_str) in str_vec.iter().enumerate() {
+            if let Some(score) = pattern.score(Utf32Str::new(e_str, buff), &mut self.matcher) {
+                vec.push((i, score));
+            };
+        }
+
+        vec.sort_by(|a, b| b.1.cmp(&a.1));
+        self.rows_to_data_index = vec.into_iter().map(|(i, _)| i).collect()
+    }
+
+    /// update the index of rows to data pointer vec
+    fn update_row_to_data_index(&mut self) {
         let mut buf = Vec::new();
 
-        if let Some(resp) = &self.resp.search {
-            let mut matches_result: Vec<(usize, u32)> = resp
-                .iter()
-                .enumerate()
-                .filter_map(|(og_index, item)| {
-                    let name = if let Some(english_name) = &item.english_name {
-                        format!("{} {}", item.name, english_name)
-                    } else {
-                        item.name.clone()
-                    };
+        match self.view {
+            View::Loading => (),
+            View::Search => {
+                if let Some(resp) = &self.resp.search {
+                    self.fuzzy_reorder(
+                        resp.iter()
+                            .map(|item| {
+                                if let Some(english_name) = &item.english_name {
+                                    format!("{} {}", item.name, english_name)
+                                } else {
+                                    item.name.to_string()
+                                }
+                            })
+                            .collect(),
+                        &mut buf,
+                    )
+                }
+            }
 
-                    let haystack = Utf32Str::new(name.as_str(), &mut buf);
-                    pattern
-                        .score(haystack, &mut self.matcher)
-                        .map(|score| (og_index, score))
-                })
-                .collect();
-            matches_result.sort_by(|a, b| b.1.cmp(&a.1));
-            self.rows_to_data_index = matches_result.into_iter().map(|(i, _)| i).collect();
-        };
+            View::Episode => {
+                if let Some((_, resp, _)) = &self.resp.episode_list {
+                    self.fuzzy_reorder(resp.iter().map(|item| item.to_string()).collect(), &mut buf)
+                }
+            }
 
-        if let Some((_, resp, _)) = &self.resp.episode_list {
-            let mut matches_result: Vec<(usize, u32)> = resp
-                .iter()
-                .enumerate()
-                .filter_map(|(og_index, item)| {
-                    let haystack = Utf32Str::new(item, &mut buf);
-                    pattern
-                        .score(haystack, &mut self.matcher)
-                        .map(|score| (og_index, score))
-                })
-                .collect();
-            matches_result.sort_by(|a, b| b.1.cmp(&a.1));
-            self.rows_to_data_index = matches_result.into_iter().map(|(i, _)| i).collect();
-        };
-
-        if let Some((_, resp)) = &self.resp.episode_provider_list {
-            let mut matches_result: Vec<(usize, u32)> = resp
-                .iter()
-                .enumerate()
-                .filter_map(|(og_index, item)| {
-                    let haystack = Utf32Str::new(&item.0, &mut buf);
-                    pattern
-                        .score(haystack, &mut self.matcher)
-                        .map(|score| (og_index, score))
-                })
-                .collect();
-            matches_result.sort_by(|a, b| b.1.cmp(&a.1));
-            self.rows_to_data_index = matches_result.into_iter().map(|(i, _)| i).collect();
+            View::Provider => {
+                if let Some((_, resp)) = &self.resp.episode_provider_list {
+                    self.fuzzy_reorder(
+                        resp.iter().map(|item| item.0.to_string()).collect(),
+                        &mut buf,
+                    )
+                }
+            }
         }
     }
 
@@ -375,7 +382,7 @@ impl App {
                 .alignment(HorizontalAlignment::Center)
                 .block(
                     Block::bordered()
-                        .title("Fuzzy search")
+                        .title("Fuzzy Search")
                         .title_style(Style::new().green().bold())
                         .style(Style::new().red())
                         .border_type(BorderType::Rounded),
@@ -387,7 +394,7 @@ impl App {
     /// render the skeleton before data is there
     fn render_skeleton(&self, frame: &mut Frame, area: Rect) {
         frame.render_widget(
-            Paragraph::new(ASCII_ART)
+            Paragraph::new(include_str!("../etc/art.txt"))
                 .style(Style::default().bold().cyan())
                 .centered()
                 .block(
@@ -407,7 +414,6 @@ impl App {
         let mut rows = vec![];
         for index in &self.rows_to_data_index {
             let item = &data[*index];
-
             let ep_count = item
                 .available_episodes
                 .as_ref()
@@ -421,7 +427,7 @@ impl App {
             rows.push(
                 Row::new(vec![
                     Cell::from(
-                        Line::styled((index + 1).to_string(), Style::default().bold())
+                        Line::styled((index + 1).to_string(), Style::default().yellow().bold())
                             .alignment(HorizontalAlignment::Center),
                     ),
                     Cell::from(vec![
@@ -444,7 +450,7 @@ impl App {
                     ),
                 ])
                 .height(3),
-            );
+            )
         }
 
         let header = Row::new(vec![
@@ -590,8 +596,8 @@ impl App {
             frame,
             bottom,
             Line::from(vec![
-                Span::raw("Move "),
-                Span::styled("up / down ", Style::default().bold().yellow()),
+                Span::raw("move "),
+                Span::styled("Up / Down ", Style::default().bold().yellow()),
                 Span::raw("using "),
                 Span::styled("↑ / ctrl + k ", Style::default().bold().yellow()),
                 Span::raw("and "),

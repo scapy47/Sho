@@ -59,6 +59,26 @@ jobs:
           cp "$SRC" "$DST"
           echo "Created $DST"
 
+      - name: Install UPX
+      - name: Install UPX
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y upx-ucl || sudo apt-get install -y upx
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            brew install upx
+          elif [ "$RUNNER_OS" == "Windows" ]; then
+            choco install upx -y
+          fi
+        shell: bash
+
+      - name: Compress Binary
+        shell: bash
+        run: |
+          FILE="${{ env.BIN_NAME }}-${{ matrix.os_name }}${{ matrix.suffix }}"
+          ls -lh "$FILE"
+          upx --best --lzma "$FILE"
+
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:

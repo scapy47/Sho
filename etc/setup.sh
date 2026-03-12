@@ -13,6 +13,27 @@ esac
 
 FILENAME="shio-${OS}-x86_64"
 
+while true; do
+    printf "Try shio before installation? (!! Run directly !!) (y/n): "
+    read choice
+
+    case "$choice" in
+        y|Y)
+            TMP_DIR=$(mktemp -d)
+            curl -fL -o "$TMP_DIR/shio" "$BASE_URL/$FILENAME" || { echo "Download failed"; exit 1; }
+            chmod +x "$TMP_DIR/shio"
+            "$TMP_DIR/shio" "$@"
+            break
+            ;;
+        n|N)
+            exit
+            ;;
+        *)
+            echo "Please answer y or n."
+            ;;
+    esac
+done
+
 INSTALL_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
 FINAL_PATH="$INSTALL_DIR/shio"
 
