@@ -11,22 +11,33 @@ case "$(uname)" in
   *)      echo "Unsupported OS"; exit 1 ;;
 esac
 
-FILENAME="shio-${OS}-x86_64"
+case "$(uname -m)" in
+  x86_64)         ARCH="x86_64" ;;
+  arm64|aarch64)  ARCH="aarch64" ;;
+  *)              echo "Unsupported architecture"; exit 1 ;;
+esac
+
+FILENAME="shio-${OS}-${ARCH}"
 
 while true; do
     printf "Try shio before installation? (!! Run directly !!) (y/n): "
-    read choice
-
+    read -r choice
     case "$choice" in
         y|Y)
             TMP_DIR=$(mktemp -d)
+            trap 'rm -rf "$TMP_DIR"' EXIT
             curl -fL -o "$TMP_DIR/shio" "$BASE_URL/$FILENAME" || { echo "Download failed"; exit 1; }
             chmod +x "$TMP_DIR/shio"
             "$TMP_DIR/shio" "$@"
-            break
+            printf "Proceed with installation? (y/n): "
+            read -r install_choice
+            case "$install_choice" in
+                y|Y) break ;;
+                *)   exit 0 ;;
+            esac
             ;;
         n|N)
-            exit
+            exit 0
             ;;
         *)
             echo "Please answer y or n."
@@ -36,13 +47,11 @@ done
 
 INSTALL_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
 FINAL_PATH="$INSTALL_DIR/shio"
-
 mkdir -p "$INSTALL_DIR"
 
 echo "Downloading to $FINAL_PATH"
 curl -fL -o "$FINAL_PATH" "$BASE_URL/$FILENAME" || { echo "Download failed"; exit 1; }
 chmod +x "$FINAL_PATH"
-
 echo "Installed to $FINAL_PATH"
 
 case ":$PATH:" in
@@ -55,6 +64,11 @@ case ":$PATH:" in
     ;;
 esac
 
+echo ""
 echo "Run 'shio --version' to verify."
-echo 'To enable playback, add to your shell config:'
+echo ""
+echo "To enable playback, add one of the following to your shell config:"
+echo '  # mpv'
 echo '  export SHIO_PLAYER_CMD="mpv --user-agent={user_agent} --http-header-fields=\"Referer: {referer}\" {url}"'
+echo '  # VLC'
+echo '  export SHIO_PLAYER_CMD="vlc --http-user-agent={user_agent} --http-referrer={referer} {url}"'
