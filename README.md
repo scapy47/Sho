@@ -1,7 +1,7 @@
 <div id="top">
     <div align="center">
         <h1>Shio</h1>
-        <p>blazingly fast TUI anime browser. written in rust.</p>
+        <p>blazingly fast TUI anime browser, written in rust.</p>
         <p>inspired by ani-cli from <a href="https://github.com/pystardust/ani-cli">pystardust</a></p>
         <p>
             <img src="https://img.shields.io/badge/Rust-000000?style=flat&logo=rust&logoColor=white" alt="Rust" />
@@ -15,14 +15,15 @@
     </div>
 </div>
 
-![looksmaxxing](assets/edited-6469.jpg)
-![looksmaxxing](assets/edited-6468.jpg)
-![looksmaxxing](assets/edited-6467.jpg)
-![looksmaxxing](assets/edited-6466.jpg)
+## Screenshots
+![looksmaxxing](https://raw.githubusercontent.com/scapy47/Shio/refs/heads/main/assets/edited-6469.jpg)
+![looksmaxxing](https://raw.githubusercontent.com/scapy47/Shio/refs/heads/main/assets/edited-6468.jpg)
+![looksmaxxing](https://raw.githubusercontent.com/scapy47/Shio/refs/heads/main/assets/edited-6467.jpg)
+![looksmaxxing](https://raw.githubusercontent.com/scapy47/Shio/refs/heads/main/assets/edited-6466.jpg)
 
 ## Quick Links
 
-- [intro](#Introduction)
+- [Features](#Features)
 - [Getting started](#Getting-started)
 
 ## Features
@@ -50,7 +51,10 @@ export SHIO_PLAYER_CMD="vlc --http-user-agent='{user_agent}' --http-referrer='{r
 ```
 
 > [!NOTE]
-> `{url}` is required. `{user_agent}` and `{referer}` are only required for some hosts — but it's recommended to include them so all sources work correctly.
+> `{url}`, `{user_agent}` and `{referer}` are placeholder for values populated by shio.
+> 
+> `{url}` is url of video, while `{user_agent}` and `{referer}` are headers required for some sources/providers to work.
+
 
 ### Installation
 
@@ -63,3 +67,6 @@ curl -fsSL https://raw.githubusercontent.com/Scapy47/Shio/refs/heads/main/etc/se
 ```powershell
 irm https://raw.githubusercontent.com/Scapy47/Shio/refs/heads/main/etc/setup.ps1 | iex
 ```
+<!--stackedit_data:
+eyJoaXN0b3J5IjpbODk2MzI4NDEzLDE4NjY4NzI5NDddfQ==
+-->
