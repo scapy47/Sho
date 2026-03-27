@@ -1,5 +1,5 @@
 use clap::ValueEnum;
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::{collections::HashMap, time::Duration};
 use ureq::{Agent, RequestBuilder, typestate::WithoutBody};
@@ -16,6 +16,10 @@ pub struct AnimeEdge {
 
     pub english_name: Option<String>,
     pub available_episodes: Option<HashMap<String, Value>>,
+    pub thumbnail: String,
+    pub description: String,
+    #[serde(rename = "__typename")]
+    pub typename: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -118,27 +122,40 @@ impl Api {
         }
     }
 
-    fn request_api(&self, variables: &str, gql: &str) -> RequestBuilder<WithoutBody> {
-        self.agent
-            .get(self.base_api)
+    fn request_api<T: DeserializeOwned>(
+        &self,
+        variables: &str,
+        gql: &str,
+    ) -> Result<T, Box<dyn std::error::Error>> {
+        let body = serde_json::json!({
+        "query": gql,
+        "variables": serde_json::from_str::<serde_json::Value>(variables)
+            .unwrap_or(serde_json::json!({}))
+        });
+
+        let resp = self
+            .agent
+            .post(self.base_api)
             .header("Referer", self.referer)
-            .query("variables", variables)
-            .query("query", gql)
+            .header("Content-Type", "application/json")
+            .send_json(&body)?;
+
+        let parsed: T = resp.into_body().read_json()?;
+        Ok(parsed)
     }
 
     /// Search for anime with its name
     pub fn search_anime(&self, query: &str) -> Result<SearchResponse, Box<dyn std::error::Error>> {
-        let gql = "query( $search: SearchInput $limit: Int $page: Int $translationType: VaildTranslationTypeEnumType $countryOrigin: VaildCountryOriginEnumType ) { shows( search: $search limit: $limit page: $page translationType: $translationType countryOrigin: $countryOrigin ) { edges { _id name englishName availableEpisodes __typename } }}";
+        let gql = "query( $search: SearchInput $limit: Int $page: Int $translationType: VaildTranslationTypeEnumType $countryOrigin: VaildCountryOriginEnumType ) { shows( search: $search limit: $limit page: $page translationType: $translationType countryOrigin: $countryOrigin ) { edges { _id name englishName availableEpisodes __typename thumbnail description } }}";
 
         let variables_json = &format!(
             r#"{{"search":{{"allowAdult":false,"allowUnknown":false,"query":"{}"}},"limit":40,"page":1,"translationType":"{}","countryOrigin":"ALL"}}"#,
             query, self.mode
         );
 
-        let resp = self.request_api(variables_json, gql).call()?;
-        let parsed: SearchResponse = resp.into_body().read_json()?;
+        let resp: SearchResponse = self.request_api(variables_json, gql)?;
 
-        Ok(parsed)
+        Ok(resp)
     }
 
     /// Get the links that can be played/download
@@ -153,11 +170,11 @@ impl Api {
             r#"{{"showId":"{}","translationType":"{}","episodeString":"{}"}}"#,
             id, self.mode, ep
         );
-        let resp = self.request_api(variables_json, gql).call()?;
-        let parsed: EpisodeResponse = resp.into_body().read_json()?;
+
+        let resp: EpisodeResponse = self.request_api(variables_json, gql)?;
 
         let mut vec = Vec::new();
-        for source in parsed.data.episode.source_urls {
+        for source in resp.data.episode.source_urls {
             let provider_name = source.source_name;
             let raw_uri = source.source_url;
 
@@ -188,7 +205,7 @@ impl Api {
             vec.push((provider_name, uri));
         }
 
-        Ok((parsed.data.episode.episode_string, vec))
+        Ok((resp.data.episode.episode_string, vec))
     }
 
     pub fn resolve_clock_urls(&self, url: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -205,6 +222,12 @@ impl Api {
             }
         }
 
+        // json["links"]
+        //     .as_array()
+        //     .and_then(|arr| arr.first())
+        //     .and_then(|item| item["link"].as_str())
+        //     .map(|s| s.to_string());
+
         Err("Could not find 'link' field in clock.json response".into())
     }
 
@@ -217,11 +240,7 @@ impl Api {
             "query ($showId: String!) { show( _id: $showId ) { _id name availableEpisodesDetail }}";
         let variables_json = &format!(r#"{{"showId":"{}"}}"#, id);
 
-        let resp: EpisodeListResponse = self
-            .request_api(variables_json, gql)
-            .call()?
-            .into_body()
-            .read_json()?;
+        let resp: EpisodeListResponse = self.request_api(variables_json, gql)?;
 
         let mut show = resp.data.show;
 

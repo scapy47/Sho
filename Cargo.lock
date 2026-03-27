@@ -2460,6 +2460,7 @@ dependencies = [
  "nucleo-matcher",
  "ratatui",
  "ratatui-image",
+ "ratatui-macros",
  "serde",
  "serde_json",
  "tui-input",
