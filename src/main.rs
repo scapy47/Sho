@@ -1,4 +1,5 @@
 use clap::Parser;
+use image::{DynamicImage, ImageFormat, ImageReader};
 use nucleo_matcher::{
     Config, Matcher, Utf32Str,
     pattern::{AtomKind, CaseMatching, Normalization, Pattern},
@@ -6,17 +7,21 @@ use nucleo_matcher::{
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, Event},
-    layout::{Constraint, HorizontalAlignment, Layout, Rect},
+    layout::{Constraint, HorizontalAlignment, Rect},
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Cell, Paragraph, Row, Table, TableState, Wrap},
+    widgets::{Block, BorderType, Cell, Paragraph, Row, Table, TableState},
 };
+use ratatui_image::{StatefulImage, picker::Picker, protocol::StatefulProtocol};
 use ratatui_macros::{horizontal, line, span, vertical};
 use std::{
     env,
-    ops::Index,
+    io::{Cursor, Read},
     process::Command,
-    sync::{Arc, mpsc},
+    sync::{
+        Arc,
+        mpsc::{self, Receiver},
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -64,7 +69,6 @@ enum View {
     Provider,
 }
 
-#[derive(Debug)]
 struct App {
     /// select icon
     select_icon: String,
@@ -82,7 +86,8 @@ struct App {
     rows_to_data_index: Vec<usize>,
     table_state: TableState,
     ui_loop_tick: Instant,
-    selected_row: usize,
+    image: StatefulProtocol,
+    rx_img: Option<Receiver<DynamicImage>>,
 }
 
 impl App {
@@ -90,6 +95,9 @@ impl App {
         let args = Args::parse();
         let mode = args.mode;
         let api = Arc::new(Api::new(mode, args.debug));
+
+        let picker = Picker::halfblocks();
+        let tmp_image = picker.new_resize_protocol(DynamicImage::new_rgba8(1, 1));
 
         Self {
             select_icon: String::default(),
@@ -103,7 +111,8 @@ impl App {
             view: View::Loading,
             resp: Resp::default(),
             ui_loop_tick: Instant::now(),
-            selected_row: 0,
+            image: tmp_image,
+            rx_img: None,
         }
     }
 
@@ -187,31 +196,19 @@ impl App {
                         }
                         event::KeyCode::Down => {
                             self.table_state.select_next();
-                            if let Some(row) = self.table_state.selected() {
-                                self.selected_row = row
-                            }
                         }
                         event::KeyCode::Char('j') | event::KeyCode::Char('n')
                             if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
                         {
                             self.table_state.select_next();
-                            if let Some(row) = self.table_state.selected() {
-                                self.selected_row = row
-                            }
                         }
                         event::KeyCode::Up => {
                             self.table_state.select_previous();
-                            if let Some(row) = self.table_state.selected() {
-                                self.selected_row = row
-                            }
                         }
                         event::KeyCode::Char('k') | event::KeyCode::Char('p')
                             if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
                         {
                             self.table_state.select_previous();
-                            if let Some(row) = self.table_state.selected() {
-                                self.selected_row = row
-                            }
                         }
                         event::KeyCode::Backspace | event::KeyCode::Char('h')
                             if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
@@ -234,6 +231,10 @@ impl App {
                                         return Ok(());
                                     };
                                     let id = resp[self.rows_to_data_index[row]].id.clone();
+
+                                    self.rx_img = Some(self.load_image_from_url(
+                                        resp[self.rows_to_data_index[row]].thumbnail.to_string(),
+                                    ));
 
                                     let tx_clone = tx.clone();
                                     let api_clone = self.api.clone();
@@ -394,6 +395,51 @@ impl App {
                 }
             }
         }
+    }
+    fn load_image_from_url(&mut self, uri: String) -> Receiver<DynamicImage> {
+        let api = self.api.clone();
+        let (tx, rx) = mpsc::channel();
+
+        thread::spawn(move || {
+            let result = || -> Result<DynamicImage, Box<dyn std::error::Error>> {
+                let resp = api.agent.get(uri).call()?;
+                let content_type = resp
+                    .headers()
+                    .get("content-type")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("")
+                    .to_string();
+
+                let bytes = resp
+                    .into_body()
+                    .into_reader()
+                    .bytes()
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let format = match content_type.as_str() {
+                    "image/png" => ImageFormat::Png,
+                    "image/jpeg" => ImageFormat::Jpeg,
+                    "image/webp" => ImageFormat::WebP,
+                    "image/gif" => ImageFormat::Gif,
+                    _ => ImageReader::new(Cursor::new(&bytes))
+                        .with_guessed_format()?
+                        .format()
+                        .ok_or("unknown image format")?,
+                };
+
+                let img = ImageReader::with_format(Cursor::new(bytes), format).decode()?;
+                Ok(img)
+            }();
+
+            match result {
+                Ok(img) => {
+                    let _ = tx.send(img);
+                }
+                Err(_) => (),
+            }
+        });
+
+        rx
     }
 
     fn render_search_input(&self, frame: &mut Frame, area: Rect) {
@@ -570,27 +616,22 @@ impl App {
         );
     }
 
-    fn render_info_screen(&self, frame: &mut Frame, area: Rect) {
-        let [top, bottom] = vertical![==50%, *=1].areas(area);
+    fn render_info_screen(&mut self, frame: &mut Frame, area: Rect) {
+        if let Some(img) = self.rx_img.as_ref().and_then(|rx| rx.recv().ok()) {
+            let picker = Picker::halfblocks();
+            let protocol = picker.new_resize_protocol(img);
+            self.image = protocol
+        }
 
-        let Some(data) = &self.resp.search else {
-            return;
-        };
+        let image_widget = StatefulImage::default();
+        let box_widget = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .style(Style::new().cyan());
 
-        let Some(data_index) = self.rows_to_data_index.get(self.selected_row) else {
-            return;
-        };
+        let box_widget_inner = box_widget.inner(area);
+        frame.render_widget(box_widget, area);
 
-        frame.render_widget(
-            Paragraph::new(line!(data[*data_index].description.as_str()))
-                .wrap(Wrap { trim: false })
-                .block(
-                    Block::bordered()
-                        .border_type(BorderType::Rounded)
-                        .style(Style::new().cyan()),
-                ),
-            bottom,
-        );
+        frame.render_stateful_widget(image_widget, box_widget_inner, &mut self.image);
     }
 
     fn render_footer(&self, frame: &mut Frame, area: Rect, line: Line) {
@@ -608,27 +649,27 @@ impl App {
 
     fn render(&mut self, frame: &mut Frame) {
         let [top, middle, bottom] = vertical![==3, *=1, ==3].areas(frame.area());
-        let [middle_l, middle_r] = horizontal![==60%, *=1].areas(middle);
+        let [middle_l, middle_r] = horizontal![==80%, *=1].areas(middle);
 
         self.render_search_input(frame, top);
 
-        self.render_info_screen(frame, middle_r);
-
         match self.view {
-            View::Loading => self.render_skeleton(frame, middle_l),
+            View::Loading => self.render_skeleton(frame, middle),
             View::Search => {
                 if self.resp.search.is_some() {
-                    self.render_search_result(frame, middle_l);
+                    self.render_search_result(frame, middle);
                 }
             }
             View::Episode => {
                 if self.resp.episode_list.is_some() {
                     self.render_episode_list(frame, middle_l);
+                    self.render_info_screen(frame, middle_r);
                 }
             }
             View::Provider => {
                 if self.resp.episode_provider_list.is_some() {
                     self.render_episode_providers(frame, middle_l);
+                    self.render_info_screen(frame, middle_r);
                 }
             }
         }

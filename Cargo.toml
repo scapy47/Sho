@@ -1,6 +1,6 @@
 [package]
 name = "sho"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 description = "blazingly fast TUI anime browser"
 license = "GPL-2.0"
@@ -19,6 +19,7 @@ strip = true
 [dependencies]
 clap = { version = "4.5.48", features = ["derive"] }
 color-eyre = "0.6.5"
+image = "0.25.10"
 nucleo-matcher = "0.3.1"
 ratatui = "0.30.0"
 ratatui-image = { version = "10.0.6", default-features = false, features = ["image-defaults", "crossterm"] }

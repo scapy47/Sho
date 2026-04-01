@@ -2,7 +2,7 @@ use clap::ValueEnum;
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::{collections::HashMap, time::Duration};
-use ureq::{Agent, RequestBuilder, typestate::WithoutBody};
+use ureq::Agent;
 
 use crate::decrypt_url;
 
@@ -17,9 +17,9 @@ pub struct AnimeEdge {
     pub english_name: Option<String>,
     pub available_episodes: Option<HashMap<String, Value>>,
     pub thumbnail: String,
-    pub description: String,
-    #[serde(rename = "__typename")]
-    pub typename: String,
+    // pub description: String,
+    // #[serde(rename = "__typename")]
+    // pub typename: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -89,7 +89,7 @@ pub struct Api {
     pub user_agent: &'static str,
     pub mode: &'static str,
     pub debug: bool,
-    agent: Agent,
+    pub agent: Agent,
 }
 
 #[derive(ValueEnum, Debug, Clone, Copy)]

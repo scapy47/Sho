@@ -32,6 +32,7 @@
 - Multi audio support
 - Bring Your Own [player](###Setup-Player) (Not Hard-coded)
 - Zero Dependency other then libc (and curl maybe)
+- Image preview
 - Cross Platform
 - Blazingly Fast
 
