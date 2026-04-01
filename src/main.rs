@@ -290,8 +290,10 @@ impl App {
                                     };
 
                                     let mut player_cmd =
-                                        env::var("SHO_PLAYER_CMD").unwrap_or(
-                                        "curl -L -H 'Referer: {referer}' -H 'User-Agent: {user_agent}' {url} -O --progress-bar".to_string());
+                                        env::var("SHO_PLAYER_CMD").unwrap_or_else(|e| {
+                                            eprintln!("SHO_PLAYER_CMD Error: {}", e);
+                                            std::process::exit(1)
+                                        });
 
                                     if player_cmd.contains("{url}") {
                                         player_cmd = player_cmd.replace("{url}", &url);
