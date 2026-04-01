@@ -59,12 +59,6 @@ export SHO_PLAYER_CMD="vlc --http-user-agent='{user_agent}' --http-referrer='{re
 
 ### Installation
 
-**Linux / macOS**
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Scapy47/Sho/refs/heads/main/etc/setup.sh | sh
-```
-
-**Windows**
-```powershell
-irm https://raw.githubusercontent.com/Scapy47/Sho/refs/heads/main/etc/setup.ps1 | iex
+cargo install sho
 ```
