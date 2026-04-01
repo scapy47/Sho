@@ -291,6 +291,7 @@ impl App {
 
                                     let mut player_cmd =
                                         env::var("SHO_PLAYER_CMD").unwrap_or_else(|e| {
+                                            let _ = terminal.clear();
                                             eprintln!("SHO_PLAYER_CMD Error: {}", e);
                                             std::process::exit(1)
                                         });
