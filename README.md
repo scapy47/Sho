@@ -15,6 +15,9 @@
     </div>
 </div>
 
+> [!CAUTION]
+> project is currently not stable
+
 ## Screenshots
 ![looksmaxxing](https://raw.githubusercontent.com/scapy47/Sho/refs/heads/main/assets/edited-6469.jpg)
 ![looksmaxxing](https://raw.githubusercontent.com/scapy47/Sho/refs/heads/main/assets/edited-6468.jpg)
