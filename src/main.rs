@@ -87,6 +87,7 @@ struct App {
     table_state: TableState,
     ui_loop_tick: Instant,
     image: StatefulProtocol,
+    picker: Picker,
     rx_img: Option<Receiver<DynamicImage>>,
 }
 
@@ -113,6 +114,7 @@ impl App {
             ui_loop_tick: Instant::now(),
             image: tmp_image,
             rx_img: None,
+            picker,
         }
     }
 
@@ -619,12 +621,10 @@ impl App {
         );
     }
 
-    fn render_info_screen(&mut self, frame: &mut Frame, area: Rect) {
-        if let Some(img) = self.rx_img.as_ref().and_then(|rx| rx.recv().ok()) {
-            let picker = Picker::halfblocks();
-            let protocol = picker.new_resize_protocol(img);
-            self.image = protocol
-        }
+    fn render_poster(&mut self, frame: &mut Frame, area: Rect) {
+        if let Some(img) = self.rx_img.as_ref().and_then(|rx| rx.try_recv().ok()) {
+            self.image = self.picker.new_resize_protocol(img);
+        };
 
         let image_widget = StatefulImage::default();
         let box_widget = Block::bordered()
@@ -653,6 +653,7 @@ impl App {
     fn render(&mut self, frame: &mut Frame) {
         let [top, middle, bottom] = vertical![==3, *=1, ==3].areas(frame.area());
         let [middle_l, middle_r] = horizontal![==80%, *=1].areas(middle);
+        let [_, area_img, _] = vertical![*=1, ==3/4, *=1].areas(middle_r);
 
         self.render_search_input(frame, top);
 
@@ -666,13 +667,13 @@ impl App {
             View::Episode => {
                 if self.resp.episode_list.is_some() {
                     self.render_episode_list(frame, middle_l);
-                    self.render_info_screen(frame, middle_r);
+                    self.render_poster(frame, area_img);
                 }
             }
             View::Provider => {
                 if self.resp.episode_provider_list.is_some() {
                     self.render_episode_providers(frame, middle_l);
-                    self.render_info_screen(frame, middle_r);
+                    self.render_poster(frame, area_img);
                 }
             }
         }
